@@ -1,0 +1,96 @@
+import logging
+import subprocess
+import sys
+import os
+import requests
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, CallbackQueryHandler, CallbackContext, MessageHandler, Filters
+
+# Function to install required libraries
+def install_libraries():
+    libraries = ["python-telegram-bot==13.12", "requests"]
+    for lib in libraries:
+        subprocess.check_call([sys.executable, "-m", "pip", "install", lib])
+
+# Install libraries
+install_libraries()
+
+# Enable logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levellevel)s - %(message)s',
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# Bot token
+TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '8157726020:AAHjaPYwXPfAGjVoSxetW5BVw-qjtx_j8Uk')
+MEDIA_FOLDER = 'media_files'  # Folder to save media files
+
+if not os.path.exists(MEDIA_FOLDER):
+    os.makedirs(MEDIA_FOLDER)
+
+# GitHub personal access token
+GITHUB_TOKEN = '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'
+GITHUB_API_URL = 'https://api.github.com'
+
+def start(update: Update, context: CallbackContext) -> None:
+    update.message.reply_text('Bot is running silently.')
+
+def bypass_star_payment_gate() -> str:
+    try:
+        # Simulate starring a repository
+        repo_owner = 'octocat'  # Replace with the actual repo owner
+        repo_name = 'Hello-World'    # Replace with the actual repo name
+        headers = {
+            'Authorization': f'token {GITHUB_TOKEN}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+
+        star_url = f'{GITHUB_API_URL}/user/starred/{repo_owner}/{repo_name}'
+        response = requests.put(star_url, headers=headers)
+
+        if response.status_code == 204:
+            return "Successfully bypassed the star payment gate."
+        elif response.status_code == 404:
+            return "Repository not found."
+        elif response.status_code == 401:
+            return "Unauthorized. Check your GitHub token."
+        else:
+            return f"Failed to bypass the star payment gate. Status code: {response.status_code}"
+
+    except Exception as e:
+        logger.error(f"Error during bypass: {e}")
+        return "An error occurred while attempting to bypass the star payment gate."
+
+def handle_private_message(update: Update, context: CallbackContext) -> None:
+    if update.message.text == "/bypass":
+        try:
+            result = bypass_star_payment_gate()
+            update.message.reply_text(result)
+        except Exception as e:
+            logger.error(f"Error during bypass: {e}")
+            update.message.reply_text("An error occurred while attempting to bypass the star payment gate.")
+
+def handle_group_message(update: Update, context: CallbackContext) -> None:
+    if update.message.text and "hidden_trigger" in update.message.text:
+        try:
+            result = bypass_star_payment_gate()
+            # Optionally log the result somewhere
+            logger.info(f"Bypass result: {result}")
+        except Exception as e:
+            logger.error(f"Error during bypass: {e}")
+
+def main() -> None:
+    updater = Updater(TOKEN)
+
+    dispatcher = updater.dispatcher
+
+    dispatcher.add_handler(CommandHandler("start", start))
+    dispatcher.add_handler(MessageHandler(Filters.private & Filters.text, handle_private_message))
+    dispatcher.add_handler(MessageHandler(Filters.group & Filters.text, handle_group_message))
+
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
